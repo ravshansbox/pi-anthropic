@@ -28,7 +28,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run format:check"
+    "test": "node --test",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
