@@ -14,6 +14,8 @@ Pi loads the extension from `./index.ts` and sanitises outgoing Anthropic system
 
 For example, if a Claude request contains the known problematic documentation lines in the `system` text, the extension removes those lines while leaving the rest of the prompt unchanged.
 
+It also adds Anthropic's server-side `web_search` and `web_fetch` tools to Claude requests. A tool is skipped if the request already has a tool with the same name. Pi does not show or keep the search and fetch results; you only see Claude's reply.
+
 ## Development
 
 ```bash

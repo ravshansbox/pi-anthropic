@@ -16,8 +16,40 @@ function sendRequest(payload: unknown): unknown {
   return handler?.({ payload }) ?? payload;
 }
 
+const webTools = [
+  { type: 'web_search_20250305', name: 'web_search' },
+  { type: 'web_fetch_20250910', name: 'web_fetch' },
+];
+
+test('adds Anthropic web tools to Claude requests', () => {
+  const result = sendRequest({
+    model: 'claude-sonnet-4-5',
+    tools: [{ name: 'read', input_schema: {} }],
+  });
+  assert.deepEqual(result, {
+    model: 'claude-sonnet-4-5',
+    tools: [{ name: 'read', input_schema: {} }, ...webTools],
+  });
+});
+
+test('adds Anthropic web tools when the request has no tools', () => {
+  const result = sendRequest({ model: 'claude-sonnet-4-5' });
+  assert.deepEqual(result, { model: 'claude-sonnet-4-5', tools: webTools });
+});
+
+test('does not add a web tool whose name is already taken', () => {
+  const result = sendRequest({
+    model: 'claude-sonnet-4-5',
+    tools: [{ name: 'web_search', input_schema: {} }],
+  });
+  assert.deepEqual(result, {
+    model: 'claude-sonnet-4-5',
+    tools: [{ name: 'web_search', input_schema: {} }, webTools[1]],
+  });
+});
+
 test('leaves non-Claude requests unchanged', () => {
-  const payload = { model: 'gpt-5', system: 'x' };
+  const payload = { model: 'gpt-5', tools: [] };
   assert.equal(sendRequest(payload), payload);
 });
 

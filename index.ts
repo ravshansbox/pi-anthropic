@@ -6,10 +6,23 @@ type AnthropicSystemBlock = {
   cache_control?: { type: 'ephemeral'; ttl?: '1h' | '5m' };
 };
 
+type AnthropicTool = { name: string; type?: string };
+
 type AnthropicPayload = {
   model?: string;
   system?: AnthropicSystemBlock[] | string;
+  tools?: AnthropicTool[];
 };
+
+const WEB_TOOLS: AnthropicTool[] = [
+  { type: 'web_search_20250305', name: 'web_search' },
+  { type: 'web_fetch_20250910', name: 'web_fetch' },
+];
+
+function addWebTools(tools: AnthropicTool[] = []): AnthropicTool[] {
+  const names = new Set(tools.map((tool) => tool.name));
+  return [...tools, ...WEB_TOOLS.filter((tool) => !names.has(tool.name))];
+}
 
 const BAD_LINE_PREFIXES = [
   '- When asked about: extensions (docs/extensions.md, examples/extensions/)',
@@ -54,11 +67,11 @@ export default function anthropicSystemPromptSanitizer(pi: ExtensionAPI) {
     if (!payload || typeof payload !== 'object') return;
     if (typeof payload.model !== 'string') return;
     if (!payload.model.startsWith('claude-')) return;
-    if (payload.system === undefined) return;
 
     return {
       ...payload,
-      system: sanitizeSystem(payload.system),
+      ...(payload.system === undefined ? {} : { system: sanitizeSystem(payload.system) }),
+      tools: addWebTools(payload.tools),
     };
   });
 }
