@@ -8,6 +8,8 @@ Anthropic system prompt sanitiser extension for pi.
 pi install npm:@ravshansbox/pi-anthropic-sps
 ```
 
+Add `-l` to install it in project settings.
+
 ## Usage
 
 Pi loads the extension from `./index.ts` and sanitises outgoing Anthropic system prompts for Claude models before the provider request is sent.
