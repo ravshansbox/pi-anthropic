@@ -61,7 +61,7 @@ function sanitizeSystem(system: AnthropicPayload['system']): AnthropicPayload['s
   return system;
 }
 
-export default function anthropicSystemPromptSanitizer(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   pi.on('before_provider_request', (event) => {
     const payload = event.payload as AnthropicPayload;
     if (!payload || typeof payload !== 'object') return;
