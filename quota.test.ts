@@ -90,7 +90,7 @@ function startSession(provider = 'anthropic') {
         options?: { placement?: string },
       ) => {
         assert.equal(key, 'pi-anthropic');
-        assert.equal(options?.placement, 'aboveEditor');
+        assert.equal(options?.placement, 'belowEditor');
         if (content === undefined) return statuses.push(undefined);
         const components = Array.isArray(content)
           ? content.map((line) => new Text(line, 1, 0))
@@ -118,7 +118,7 @@ function startSession(provider = 'anthropic') {
   };
 }
 
-test('shows remaining Anthropic quota above the editor', async () => {
+test('shows remaining Anthropic quota below the editor', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')

@@ -156,7 +156,7 @@ export default function (pi: ExtensionAPI) {
     ctxRef.ui.setWidget(
       extensionName,
       line === undefined ? undefined : () => new Text(line, 0, 0),
-      { placement: 'aboveEditor' },
+      { placement: 'belowEditor' },
     );
   }
 
