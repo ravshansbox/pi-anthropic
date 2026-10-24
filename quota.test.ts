@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, mock, test } from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { Text, type Component } from '@earendil-works/pi-tui';
 import extension from './index.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
@@ -84,23 +83,9 @@ function startSession(provider = 'anthropic') {
     cwd: agentDir,
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
-      setWidget: (
-        key: string,
-        content: string[] | (() => Component) | undefined,
-        options?: { placement?: string },
-      ) => {
+      setStatus: (key: string, text: string | undefined) => {
         assert.equal(key, 'pi-anthropic');
-        assert.equal(options?.placement, 'belowEditor');
-        if (content === undefined) return statuses.push(undefined);
-        const components = Array.isArray(content)
-          ? content.map((line) => new Text(line, 1, 0))
-          : [content()];
-        statuses.push(
-          components
-            .flatMap((c) => c.render(80))
-            .map((line) => line.trimEnd())
-            .join('\n'),
-        );
+        statuses.push(text);
       },
       notify: (message: string) => notifications.push(message),
       theme: { fg: (_colour: string, text: string) => text },
@@ -118,7 +103,7 @@ function startSession(provider = 'anthropic') {
   };
 }
 
-test('shows remaining Anthropic quota below the editor', async () => {
+test('shows remaining Anthropic quota in the footer', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')
