@@ -19,8 +19,7 @@
   ],
   "pi": {
     "extensions": [
-      "./index.ts",
-      "./quota.ts"
+      "./index.ts"
     ]
   },
   "scripts": {

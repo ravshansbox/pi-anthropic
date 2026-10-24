@@ -8,8 +8,8 @@ type Handler = (event: { payload: unknown }) => unknown;
 function sendRequest(payload: unknown): unknown {
   let handler: Handler | undefined;
   const pi = {
-    on: (_event: string, h: Handler) => {
-      handler = h;
+    on: (event: string, h: Handler) => {
+      if (event === 'before_provider_request') handler = h;
     },
   } as unknown as ExtensionAPI;
   extension(pi);

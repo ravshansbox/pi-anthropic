@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, mock, test } from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import extension from './quota.ts';
+import extension from './index.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 

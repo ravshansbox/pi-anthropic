@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import quota from './quota.ts';
 import { sanitizeSystem, type AnthropicSystem } from './sanitize-system.ts';
 import { webFetchTool } from './web-fetch.ts';
 import { webSearchTool } from './web-search.ts';
@@ -19,6 +20,7 @@ function addWebTools(tools: AnthropicTool[] = []): AnthropicTool[] {
 }
 
 export default function (pi: ExtensionAPI) {
+  quota(pi);
   pi.on('before_provider_request', (event) => {
     const payload = event.payload as AnthropicPayload;
     if (!payload || typeof payload !== 'object') return;
