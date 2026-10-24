@@ -20,7 +20,7 @@ It also adds Anthropic's server-side `web_search` and `web_fetch` tools to Claud
 
 `./quota.ts` shows the remaining Anthropic quota above the editor when the active model is from Anthropic, e.g. `93% 1h29m · 67% 3d13h` (5-hour window first, then 7-day window, each with time until reset).
 
-- Polls the Anthropic usage endpoint on session start, then at every 10-minute wall-clock mark
+- Calls the Anthropic usage endpoint once on session start, then reads the quota from the rate limit headers of each Anthropic response
 - Refreshes the Anthropic OAuth token in `~/.pi/agent/auth.json` when needed and writes it back
 - Runs `pi -p hi` with the active model when a quota window resets
 - Appends errors to `~/.pi/agent/pi-anthropic.log`

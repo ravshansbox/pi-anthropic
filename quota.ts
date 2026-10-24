@@ -99,35 +99,6 @@ async function logError(message: string, error?: unknown): Promise<void> {
   }
 }
 
-function windowResetDetected(
-  previousReset: Date | null,
-  nextReset: Date | null,
-  previousRemaining: number | null,
-  nextRemaining: number | null,
-): boolean {
-  if (!previousReset || !nextReset) return false;
-  if (nextReset.getTime() <= previousReset.getTime()) return false;
-  if (previousRemaining === null || nextRemaining === null) return false;
-  return nextRemaining > previousRemaining;
-}
-
-function resetDetected(previous: QuotaState, next: QuotaState): boolean {
-  return (
-    windowResetDetected(
-      previous.fiveHourReset,
-      next.fiveHourReset,
-      previous.fiveHourRemaining,
-      next.fiveHourRemaining,
-    ) ||
-    windowResetDetected(
-      previous.sevenDayReset,
-      next.sevenDayReset,
-      previous.sevenDayRemaining,
-      next.sevenDayRemaining,
-    )
-  );
-}
-
 function parseWindow(window: UsageWindow | undefined) {
   return {
     remaining: window ? clampPercent(100 - (window.utilization ?? 0)) : null,
@@ -135,12 +106,33 @@ function parseWindow(window: UsageWindow | undefined) {
   };
 }
 
+function parseHeaderWindow(headers: Record<string, string>, name: string) {
+  const utilization = headers[`anthropic-ratelimit-unified-${name}-utilization`];
+  const reset = headers[`anthropic-ratelimit-unified-${name}-reset`];
+  return {
+    remaining: utilization === undefined ? null : clampPercent(100 - Number(utilization) * 100),
+    reset: reset === undefined ? null : new Date(Number(reset) * 1000),
+  };
+}
+
+function parseHeaders(headers: Record<string, string>): QuotaState | null {
+  const fiveHour = parseHeaderWindow(headers, '5h');
+  const sevenDay = parseHeaderWindow(headers, '7d');
+  if (fiveHour.remaining === null && sevenDay.remaining === null) return null;
+  return {
+    fiveHourRemaining: fiveHour.remaining,
+    fiveHourReset: fiveHour.reset,
+    sevenDayRemaining: sevenDay.remaining,
+    sevenDayReset: sevenDay.reset,
+  };
+}
+
 export default function (pi: ExtensionAPI) {
   let state: QuotaState | null = null;
   let refreshNotified = false;
   let checkTimer: ReturnType<typeof setTimeout> | null = null;
+  let pingTimer: ReturnType<typeof setTimeout> | null = null;
   let ctxRef: ExtensionContext | null = null;
-  let cycleRunning = false;
 
   function buildStatusText(): string | undefined {
     if (ctxRef?.model?.provider !== provider || !state) return undefined;
@@ -196,10 +188,21 @@ export default function (pi: ExtensionAPI) {
     child.unref();
   }
 
+  function schedulePing() {
+    if (pingTimer) clearTimeout(pingTimer);
+    pingTimer = null;
+    const now = Date.now();
+    const resets = [state?.fiveHourReset, state?.sevenDayReset]
+      .map((reset) => reset?.getTime())
+      .filter((time): time is number => time !== undefined && time > now);
+    if (resets.length === 0) return;
+    pingTimer = setTimeout(pingOnReset, Math.min(...resets) - now);
+  }
+
   function updateState(next: QuotaState) {
-    const shouldPing = state !== null && resetDetected(state, next);
     state = next;
-    if (shouldPing) pingOnReset();
+    schedulePing();
+    updateStatus();
   }
 
   async function ensureAccess(auth: AuthFile): Promise<OAuthAuthRecord | undefined> {
@@ -274,40 +277,37 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  async function runCycle() {
-    if (cycleRunning) return;
-    cycleRunning = true;
-    try {
-      await pollQuotaStatus();
-      updateStatus();
-    } finally {
-      cycleRunning = false;
-    }
-  }
-
-  function stopTimer() {
-    if (checkTimer) {
-      clearTimeout(checkTimer);
-      checkTimer = null;
-    }
+  function stopTimers() {
+    if (checkTimer) clearTimeout(checkTimer);
+    if (pingTimer) clearTimeout(pingTimer);
+    checkTimer = null;
+    pingTimer = null;
   }
 
   function scheduleCheck() {
     const delay = Math.max(0, nextMarkAfter(new Date()).getTime() - Date.now());
-    checkTimer = setTimeout(async () => {
-      await runCycle();
+    checkTimer = setTimeout(() => {
+      updateStatus();
       scheduleCheck();
     }, delay);
   }
 
   pi.on('session_start', (_event, ctx) => {
-    stopTimer();
+    stopTimers();
     state = null;
     refreshNotified = false;
     ctxRef = ctx;
 
-    void runCycle();
+    void pollQuotaStatus().then(updateStatus);
     scheduleCheck();
+  });
+
+  pi.on('after_provider_response', (event, ctx) => {
+    if (ctx.model?.provider !== provider) return;
+    const next = parseHeaders(event.headers);
+    if (!next) return;
+    ctxRef = ctx;
+    updateState(next);
   });
 
   pi.on('model_select', (_event, ctx) => {
@@ -316,6 +316,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on('session_shutdown', () => {
-    stopTimer();
+    stopTimers();
   });
 }

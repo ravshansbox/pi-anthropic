@@ -37,6 +37,11 @@ async function waitFor(check: () => boolean | Promise<boolean>) {
   throw new Error('timed out');
 }
 
+async function settle(ms: number) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) await new Promise((resolve) => setImmediate(resolve));
+}
+
 function usage(fiveHour: [number, number], sevenDay: [number, number]) {
   return {
     five_hour: {
@@ -107,7 +112,8 @@ function startSession(provider = 'anthropic') {
     statuses,
     notifications,
     ctx,
-    emit: (event: string, eventCtx: unknown = ctx) => handlers.get(event)?.({}, eventCtx),
+    emit: (event: string, eventCtx: unknown = ctx, payload: unknown = {}) =>
+      handlers.get(event)?.(payload, eventCtx),
     stop: () => handlers.get('session_shutdown')?.({}, ctx),
   };
 }
@@ -187,6 +193,42 @@ test('logs failed usage requests', async () => {
   assert.match(log, /Anthropic usage request failed: 500/);
 });
 
+test('updates the quota from Anthropic response headers', async () => {
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  mockFetch(() => usage([7, hour], [33, 2 * hour]));
+
+  const session = startSession();
+  await waitFor(() => session.statuses.length > 0);
+  const seconds = (ms: number) => String(Math.floor((Date.now() + ms) / 1000));
+  session.emit('after_provider_response', session.ctx, {
+    type: 'after_provider_response',
+    status: 200,
+    headers: {
+      'anthropic-ratelimit-unified-5h-utilization': '0.25',
+      'anthropic-ratelimit-unified-5h-reset': seconds(2 * hour + minute),
+      'anthropic-ratelimit-unified-7d-utilization': '0.4',
+      'anthropic-ratelimit-unified-7d-reset': seconds(26 * hour + minute),
+    },
+  });
+  session.stop();
+
+  assert.equal(session.statuses.at(-1), '75% 2h0m · 60% 1d2h');
+});
+
+test('calls the usage endpoint only at session start', async () => {
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  const calls = mockFetch(() => usage([7, 6 * hour], [33, 48 * hour]));
+  mock.timers.enable({ apis: ['setTimeout'] });
+
+  const session = startSession();
+  await waitFor(() => session.statuses.length > 0);
+  mock.timers.tick(30 * minute);
+  await settle(200);
+  session.stop();
+
+  assert.equal(calls.filter((url) => url.endsWith('/api/oauth/usage')).length, 1);
+});
+
 test('pings the active model when a quota window resets', async () => {
   const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
   const argsFile = join(binDir, 'args');
@@ -195,16 +237,12 @@ test('pings the active model when a quota window resets', async () => {
   process.env['PATH'] = `${binDir}:${realPath}`;
 
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
-  let poll = 0;
-  mockFetch(() => {
-    poll++;
-    return poll === 1 ? usage([90, hour], [50, 2 * hour]) : usage([0, 6 * hour], [50, 2 * hour]);
-  });
+  mockFetch(() => usage([90, hour], [50, 2 * hour]));
   mock.timers.enable({ apis: ['setTimeout'] });
 
   const session = startSession();
   await waitFor(() => session.statuses.length > 0);
-  mock.timers.tick(10 * minute);
+  mock.timers.tick(hour);
   await waitFor(async () => {
     try {
       return (await readFile(argsFile, 'utf-8')).length > 0;
