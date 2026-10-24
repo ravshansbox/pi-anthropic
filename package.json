@@ -46,7 +46,9 @@
   },
   "files": [
     "index.ts",
-    "quota.ts"
+    "quota.ts",
+    "web-fetch.ts",
+    "web-search.ts"
   ],
   "publishConfig": {
     "access": "public"

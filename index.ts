@@ -1,4 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { WEB_FETCH_TOOL } from './web-fetch.ts';
+import { WEB_SEARCH_TOOL } from './web-search.ts';
 
 type AnthropicSystemBlock = {
   type: string;
@@ -14,10 +16,7 @@ type AnthropicPayload = {
   tools?: AnthropicTool[];
 };
 
-const WEB_TOOLS: AnthropicTool[] = [
-  { type: 'web_search_20250305', name: 'web_search' },
-  { type: 'web_fetch_20250910', name: 'web_fetch' },
-];
+const WEB_TOOLS: AnthropicTool[] = [WEB_SEARCH_TOOL, WEB_FETCH_TOOL];
 
 function addWebTools(tools: AnthropicTool[] = []): AnthropicTool[] {
   const names = new Set(tools.map((tool) => tool.name));
