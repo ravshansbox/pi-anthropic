@@ -78,9 +78,10 @@ function startSession(provider = 'anthropic') {
     cwd: agentDir,
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
-      setStatus: (key: string, text: string | undefined) => {
+      setWidget: (key: string, lines: string[] | undefined, options?: { placement?: string }) => {
         assert.equal(key, 'pi-anthropic');
-        statuses.push(text);
+        assert.equal(options?.placement, 'aboveEditor');
+        statuses.push(lines?.join('\n'));
       },
       notify: (message: string) => notifications.push(message),
       theme: { fg: (_colour: string, text: string) => text },
@@ -97,7 +98,7 @@ function startSession(provider = 'anthropic') {
   };
 }
 
-test('shows remaining Anthropic quota in the footer', async () => {
+test('shows remaining Anthropic quota above the editor', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')

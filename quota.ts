@@ -159,9 +159,10 @@ export default function (pi: ExtensionAPI) {
   function updateStatus() {
     if (!ctxRef) return;
     const text = buildStatusText();
-    ctxRef.ui.setStatus(
+    ctxRef.ui.setWidget(
       extensionName,
-      text === undefined ? undefined : ctxRef.ui.theme.fg('muted', text),
+      text === undefined ? undefined : [ctxRef.ui.theme.fg('muted', text)],
+      { placement: 'aboveEditor' },
     );
   }
 
