@@ -16,7 +16,7 @@ const realFetch = globalThis.fetch;
 const realPath = process.env['PATH'];
 
 beforeEach(async () => {
-  agentDir = await mkdtemp(join(tmpdir(), 'pi-anthropic-sps-'));
+  agentDir = await mkdtemp(join(tmpdir(), 'pi-anthropic-'));
   process.env['PI_CODING_AGENT_DIR'] = agentDir;
 });
 
@@ -79,7 +79,7 @@ function startSession(provider = 'anthropic') {
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
       setStatus: (key: string, text: string | undefined) => {
-        assert.equal(key, 'pi-anthropic-sps');
+        assert.equal(key, 'pi-anthropic');
         statuses.push(text);
       },
       notify: (message: string) => notifications.push(message),
@@ -157,7 +157,7 @@ test('refreshes an expired Anthropic token and saves it', async () => {
   assert.equal(saved.anthropic.access, 'new');
   assert.equal(saved.anthropic.refresh, 'new-refresh');
   assert.deepEqual(usageAuth, ['Bearer new']);
-  assert.deepEqual(session.notifications, ['pi-anthropic-sps: refreshed Anthropic auth']);
+  assert.deepEqual(session.notifications, ['pi-anthropic: refreshed Anthropic auth']);
 });
 
 test('logs failed usage requests', async () => {
@@ -168,7 +168,7 @@ test('logs failed usage requests', async () => {
   await waitFor(() => session.statuses.length > 0);
   session.stop();
 
-  const log = await readFile(join(agentDir, 'pi-anthropic-sps.log'), 'utf-8');
+  const log = await readFile(join(agentDir, 'pi-anthropic.log'), 'utf-8');
   assert.match(log, /Anthropic usage request failed: 500/);
 });
 

@@ -35,7 +35,7 @@ type UsageResponse = {
   seven_day?: UsageWindow;
 };
 
-const extensionName = 'pi-anthropic-sps';
+const extensionName = 'pi-anthropic';
 const provider = 'anthropic';
 const requestTimeoutMs = 30_000;
 

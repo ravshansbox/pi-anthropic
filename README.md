@@ -1,11 +1,11 @@
-# pi-anthropic-sps
+# pi-anthropic
 
 Anthropic system prompt sanitiser extension for pi.
 
 ## Install
 
 ```bash
-pi install npm:@ravshansbox/pi-anthropic-sps
+pi install npm:@ravshansbox/pi-anthropic
 ```
 
 Add `-l` to install it in project settings.
@@ -23,7 +23,7 @@ It also adds Anthropic's server-side `web_search` and `web_fetch` tools to Claud
 - Polls the Anthropic usage endpoint on session start, then at every 10-minute wall-clock mark
 - Refreshes the Anthropic OAuth token in `~/.pi/agent/auth.json` when needed and writes it back
 - Runs `pi -p hi` with the active model when a quota window resets
-- Appends errors to `~/.pi/agent/pi-anthropic-sps.log`
+- Appends errors to `~/.pi/agent/pi-anthropic.log`
 
 ## Development
 

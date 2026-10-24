@@ -1,16 +1,16 @@
 {
-  "name": "@ravshansbox/pi-anthropic-sps",
+  "name": "@ravshansbox/pi-anthropic",
   "version": "0.0.0",
   "description": "Anthropic system prompt sanitiser extension for pi",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ravshansbox/pi-anthropic-sps.git"
+    "url": "git+https://github.com/ravshansbox/pi-anthropic.git"
   },
-  "homepage": "https://github.com/ravshansbox/pi-anthropic-sps#readme",
+  "homepage": "https://github.com/ravshansbox/pi-anthropic#readme",
   "bugs": {
-    "url": "https://github.com/ravshansbox/pi-anthropic-sps/issues"
+    "url": "https://github.com/ravshansbox/pi-anthropic/issues"
   },
   "keywords": [
     "pi-package",
