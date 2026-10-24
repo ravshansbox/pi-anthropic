@@ -47,6 +47,7 @@
   "files": [
     "index.ts",
     "quota.ts",
+    "sanitize-system.ts",
     "web-fetch.ts",
     "web-search.ts"
   ],
