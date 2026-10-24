@@ -18,5 +18,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["index.ts", "index.test.ts", "src/**/*.ts"]
+  "include": ["*.ts", "src/**/*.ts"]
 }

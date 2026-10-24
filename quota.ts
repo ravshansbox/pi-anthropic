@@ -1,0 +1,315 @@
+import { spawn } from 'node:child_process';
+import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import {
+  getAgentDir,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from '@earendil-works/pi-coding-agent';
+
+interface QuotaState {
+  fiveHourRemaining: number | null;
+  fiveHourReset: Date | null;
+  sevenDayRemaining: number | null;
+  sevenDayReset: Date | null;
+}
+
+type OAuthAuthRecord = {
+  access?: string | undefined;
+  refresh?: string | undefined;
+  expires?: number | undefined;
+};
+
+type AuthFile = Record<string, OAuthAuthRecord>;
+
+type OAuthTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+};
+
+type UsageWindow = { utilization?: number; resets_at?: string };
+
+type UsageResponse = {
+  five_hour?: UsageWindow;
+  seven_day?: UsageWindow;
+};
+
+const NAME = 'pi-anthropic-sps';
+const PROVIDER = 'anthropic';
+const REQUEST_TIMEOUT_MS = 30_000;
+
+function nextMarkAfter(time: Date): Date {
+  const next = new Date(time.getTime());
+  next.setSeconds(0, 0);
+  const minute = next.getMinutes();
+  next.setMinutes(minute + 10 - (minute % 10));
+  return next;
+}
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function formatResetTime(reset: Date): string {
+  const diff = reset.getTime() - Date.now();
+  if (diff <= 0) return 'now';
+
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+
+  if (days > 0) return `${days}d${hours}h`;
+  if (hours > 0) return `${hours}h${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return 'now';
+}
+
+function authPath() {
+  return join(getAgentDir(), 'auth.json');
+}
+
+async function loadAuth(): Promise<AuthFile | null> {
+  try {
+    return JSON.parse(await readFile(authPath(), 'utf-8')) as AuthFile;
+  } catch {
+    return null;
+  }
+}
+
+async function persistAuthRecord(record: OAuthAuthRecord): Promise<void> {
+  const current = (await loadAuth()) ?? {};
+  current[PROVIDER] = record;
+  await writeFile(authPath(), JSON.stringify(current, null, 2));
+}
+
+async function logError(message: string, error?: unknown): Promise<void> {
+  const detail =
+    error instanceof Error
+      ? (error.stack ?? error.message)
+      : error !== undefined
+        ? String(error)
+        : '';
+  const line = `[${new Date().toISOString()}] ${message}${detail ? ` ${detail}` : ''}\n`;
+  try {
+    await appendFile(join(getAgentDir(), `${NAME}.log`), line);
+  } catch (error) {
+    console.error(`${NAME}: could not write log:`, error);
+  }
+}
+
+function windowResetDetected(
+  previousReset: Date | null,
+  nextReset: Date | null,
+  previousRemaining: number | null,
+  nextRemaining: number | null,
+): boolean {
+  if (!previousReset || !nextReset) return false;
+  if (nextReset.getTime() <= previousReset.getTime()) return false;
+  if (previousRemaining === null || nextRemaining === null) return false;
+  return nextRemaining > previousRemaining;
+}
+
+function resetDetected(previous: QuotaState, next: QuotaState): boolean {
+  return (
+    windowResetDetected(
+      previous.fiveHourReset,
+      next.fiveHourReset,
+      previous.fiveHourRemaining,
+      next.fiveHourRemaining,
+    ) ||
+    windowResetDetected(
+      previous.sevenDayReset,
+      next.sevenDayReset,
+      previous.sevenDayRemaining,
+      next.sevenDayRemaining,
+    )
+  );
+}
+
+function parseWindow(window: UsageWindow | undefined) {
+  return {
+    remaining: window ? clampPercent(100 - (window.utilization ?? 0)) : null,
+    reset: window?.resets_at ? new Date(window.resets_at) : null,
+  };
+}
+
+export default function (pi: ExtensionAPI) {
+  let state: QuotaState | null = null;
+  let refreshNotified = false;
+  let checkTimer: ReturnType<typeof setTimeout> | null = null;
+  let ctxRef: ExtensionContext | null = null;
+  let cycleRunning = false;
+
+  function buildStatusText(): string | undefined {
+    if (ctxRef?.model?.provider !== PROVIDER || !state) return undefined;
+
+    const parts: string[] = [];
+    if (state.fiveHourRemaining !== null) {
+      const resetStr = state.fiveHourReset ? formatResetTime(state.fiveHourReset) : '?';
+      parts.push(`${state.fiveHourRemaining}% ${resetStr}`);
+    }
+    if (state.sevenDayRemaining !== null) {
+      const resetStr = state.sevenDayReset ? formatResetTime(state.sevenDayReset) : '?';
+      parts.push(`${state.sevenDayRemaining}% ${resetStr}`);
+    }
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+  }
+
+  function updateStatus() {
+    if (!ctxRef) return;
+    const text = buildStatusText();
+    ctxRef.ui.setStatus(NAME, text === undefined ? undefined : ctxRef.ui.theme.fg('muted', text));
+  }
+
+  function pingOnReset() {
+    const ctx = ctxRef;
+    if (ctx?.model?.provider !== PROVIDER) return;
+
+    const child = spawn(
+      'pi',
+      [
+        '--no-session',
+        '--no-extensions',
+        '--no-context-files',
+        '--no-tools',
+        '--provider',
+        ctx.model.provider,
+        '--model',
+        ctx.model.id,
+        '-p',
+        'hi',
+      ],
+      { cwd: ctx.cwd, stdio: 'ignore' },
+    );
+
+    child.on('error', (error: unknown) => {
+      void logError('Reset ping failed:', error);
+    });
+
+    child.unref();
+  }
+
+  function updateState(next: QuotaState) {
+    const shouldPing = state !== null && resetDetected(state, next);
+    state = next;
+    if (shouldPing) pingOnReset();
+  }
+
+  async function ensureAccess(auth: AuthFile): Promise<OAuthAuthRecord | undefined> {
+    const record = auth[PROVIDER];
+    if (!record?.refresh) return record;
+    if (record.expires && record.expires > Date.now() + 60_000 && record.access) return record;
+
+    const response = await fetch('https://api.anthropic.com/v1/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: record.refresh,
+        client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      await logError(`Anthropic token refresh failed: ${response.status}`);
+      return record;
+    }
+
+    const data = (await response.json()) as OAuthTokenResponse;
+    const refreshed: OAuthAuthRecord = {
+      ...record,
+      access: data.access_token ?? record.access,
+      refresh: data.refresh_token ?? record.refresh,
+      expires: data.expires_in ? Date.now() + data.expires_in * 1000 : record.expires,
+    };
+    await persistAuthRecord(refreshed);
+    if (!refreshNotified) {
+      refreshNotified = true;
+      ctxRef?.ui.notify(`${NAME}: refreshed Anthropic auth`, 'info');
+    }
+    return refreshed;
+  }
+
+  async function pollQuotaStatus() {
+    try {
+      const auth = await loadAuth();
+      if (!auth) return;
+
+      const record = await ensureAccess(auth);
+      if (!record?.access) return;
+
+      const response = await fetch('https://api.anthropic.com/api/oauth/usage', {
+        headers: {
+          Authorization: `Bearer ${record.access}`,
+          'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
+          accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        await logError(`Anthropic usage request failed: ${response.status}`);
+        return;
+      }
+
+      const data = (await response.json()) as UsageResponse;
+      const fiveHour = parseWindow(data.five_hour);
+      const sevenDay = parseWindow(data.seven_day);
+      updateState({
+        fiveHourRemaining: fiveHour.remaining,
+        fiveHourReset: fiveHour.reset,
+        sevenDayRemaining: sevenDay.remaining,
+        sevenDayReset: sevenDay.reset,
+      });
+    } catch (error) {
+      await logError('Poll error:', error);
+    }
+  }
+
+  async function runCycle() {
+    if (cycleRunning) return;
+    cycleRunning = true;
+    try {
+      await pollQuotaStatus();
+      updateStatus();
+    } finally {
+      cycleRunning = false;
+    }
+  }
+
+  function stopTimer() {
+    if (checkTimer) {
+      clearTimeout(checkTimer);
+      checkTimer = null;
+    }
+  }
+
+  function scheduleCheck() {
+    const delay = Math.max(0, nextMarkAfter(new Date()).getTime() - Date.now());
+    checkTimer = setTimeout(async () => {
+      await runCycle();
+      scheduleCheck();
+    }, delay);
+  }
+
+  pi.on('session_start', (_event, ctx) => {
+    stopTimer();
+    state = null;
+    refreshNotified = false;
+    ctxRef = ctx;
+
+    void runCycle();
+    scheduleCheck();
+  });
+
+  pi.on('model_select', (_event, ctx) => {
+    ctxRef = ctx;
+    updateStatus();
+  });
+
+  pi.on('session_shutdown', () => {
+    stopTimer();
+  });
+}
