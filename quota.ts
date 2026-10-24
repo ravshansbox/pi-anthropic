@@ -35,9 +35,9 @@ type UsageResponse = {
   seven_day?: UsageWindow;
 };
 
-const NAME = 'pi-anthropic-sps';
-const PROVIDER = 'anthropic';
-const REQUEST_TIMEOUT_MS = 30_000;
+const extensionName = 'pi-anthropic-sps';
+const provider = 'anthropic';
+const requestTimeoutMs = 30_000;
 
 function nextMarkAfter(time: Date): Date {
   const next = new Date(time.getTime());
@@ -79,7 +79,7 @@ async function loadAuth(): Promise<AuthFile | null> {
 
 async function persistAuthRecord(record: OAuthAuthRecord): Promise<void> {
   const current = (await loadAuth()) ?? {};
-  current[PROVIDER] = record;
+  current[provider] = record;
   await writeFile(authPath(), JSON.stringify(current, null, 2));
 }
 
@@ -92,9 +92,9 @@ async function logError(message: string, error?: unknown): Promise<void> {
         : '';
   const line = `[${new Date().toISOString()}] ${message}${detail ? ` ${detail}` : ''}\n`;
   try {
-    await appendFile(join(getAgentDir(), `${NAME}.log`), line);
+    await appendFile(join(getAgentDir(), `${extensionName}.log`), line);
   } catch (error) {
-    console.error(`${NAME}: could not write log:`, error);
+    console.error(`${extensionName}: could not write log:`, error);
   }
 }
 
@@ -142,7 +142,7 @@ export default function (pi: ExtensionAPI) {
   let cycleRunning = false;
 
   function buildStatusText(): string | undefined {
-    if (ctxRef?.model?.provider !== PROVIDER || !state) return undefined;
+    if (ctxRef?.model?.provider !== provider || !state) return undefined;
 
     const parts: string[] = [];
     if (state.fiveHourRemaining !== null) {
@@ -159,12 +159,15 @@ export default function (pi: ExtensionAPI) {
   function updateStatus() {
     if (!ctxRef) return;
     const text = buildStatusText();
-    ctxRef.ui.setStatus(NAME, text === undefined ? undefined : ctxRef.ui.theme.fg('muted', text));
+    ctxRef.ui.setStatus(
+      extensionName,
+      text === undefined ? undefined : ctxRef.ui.theme.fg('muted', text),
+    );
   }
 
   function pingOnReset() {
     const ctx = ctxRef;
-    if (ctx?.model?.provider !== PROVIDER) return;
+    if (ctx?.model?.provider !== provider) return;
 
     const child = spawn(
       'pi',
@@ -197,7 +200,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   async function ensureAccess(auth: AuthFile): Promise<OAuthAuthRecord | undefined> {
-    const record = auth[PROVIDER];
+    const record = auth[provider];
     if (!record?.refresh) return record;
     if (record.expires && record.expires > Date.now() + 60_000 && record.access) return record;
 
@@ -209,7 +212,7 @@ export default function (pi: ExtensionAPI) {
         refresh_token: record.refresh,
         client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
       }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(requestTimeoutMs),
     });
 
     if (!response.ok) {
@@ -227,7 +230,7 @@ export default function (pi: ExtensionAPI) {
     await persistAuthRecord(refreshed);
     if (!refreshNotified) {
       refreshNotified = true;
-      ctxRef?.ui.notify(`${NAME}: refreshed Anthropic auth`, 'info');
+      ctxRef?.ui.notify(`${extensionName}: refreshed Anthropic auth`, 'info');
     }
     return refreshed;
   }
@@ -246,7 +249,7 @@ export default function (pi: ExtensionAPI) {
           'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
           accept: 'application/json',
         },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       });
 
       if (!response.ok) {

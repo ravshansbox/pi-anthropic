@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { sanitizeSystem, type AnthropicSystem } from './sanitize-system.ts';
-import { WEB_FETCH_TOOL } from './web-fetch.ts';
-import { WEB_SEARCH_TOOL } from './web-search.ts';
+import { webFetchTool } from './web-fetch.ts';
+import { webSearchTool } from './web-search.ts';
 
 type AnthropicTool = { name: string; type?: string };
 
@@ -11,11 +11,11 @@ type AnthropicPayload = {
   tools?: AnthropicTool[];
 };
 
-const WEB_TOOLS: AnthropicTool[] = [WEB_SEARCH_TOOL, WEB_FETCH_TOOL];
+const webTools: AnthropicTool[] = [webSearchTool, webFetchTool];
 
 function addWebTools(tools: AnthropicTool[] = []): AnthropicTool[] {
   const names = new Set(tools.map((tool) => tool.name));
-  return [...tools, ...WEB_TOOLS.filter((tool) => !names.has(tool.name))];
+  return [...tools, ...webTools.filter((tool) => !names.has(tool.name))];
 }
 
 export default function (pi: ExtensionAPI) {

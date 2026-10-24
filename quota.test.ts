@@ -8,8 +8,8 @@ import extension from './quota.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-const HOUR = 3_600_000;
-const MINUTE = 60_000;
+const hour = 3_600_000;
+const minute = 60_000;
 
 let agentDir: string;
 const realFetch = globalThis.fetch;
@@ -98,10 +98,10 @@ function startSession(provider = 'anthropic') {
 }
 
 test('shows remaining Anthropic quota in the footer', async () => {
-  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + HOUR });
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')
-      ? usage([7, HOUR + 29 * MINUTE + 30_000], [33, 85 * HOUR + 30 * MINUTE])
+      ? usage([7, hour + 29 * minute + 30_000], [33, 85 * hour + 30 * minute])
       : undefined,
   );
 
@@ -113,8 +113,8 @@ test('shows remaining Anthropic quota in the footer', async () => {
 });
 
 test('hides the status when the active model is not Anthropic', async () => {
-  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + HOUR });
-  mockFetch(() => usage([7, HOUR], [33, 2 * HOUR]));
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  mockFetch(() => usage([7, hour], [33, 2 * hour]));
 
   const session = startSession('openai');
   await waitFor(() => session.statuses.length > 0);
@@ -124,8 +124,8 @@ test('hides the status when the active model is not Anthropic', async () => {
 });
 
 test('shows the status again when switching to an Anthropic model', async () => {
-  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + HOUR });
-  mockFetch(() => usage([50, 2 * HOUR + 30_000], [50, 3 * HOUR + 30_000]));
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  mockFetch(() => usage([50, 2 * hour + 30_000], [50, 3 * hour + 30_000]));
 
   const session = startSession('openai');
   await waitFor(() => session.statuses.length > 0);
@@ -146,7 +146,7 @@ test('refreshes an expired Anthropic token and saves it', async () => {
       return { access_token: 'new', refresh_token: 'new-refresh', expires_in: 3600 };
     }
     usageAuth.push(new Headers(init?.headers).get('Authorization'));
-    return usage([0, HOUR], [0, 2 * HOUR]);
+    return usage([0, hour], [0, 2 * hour]);
   });
 
   const session = startSession();
@@ -161,7 +161,7 @@ test('refreshes an expired Anthropic token and saves it', async () => {
 });
 
 test('logs failed usage requests', async () => {
-  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + HOUR });
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch(() => undefined);
 
   const session = startSession();
@@ -179,17 +179,17 @@ test('pings the active model when a quota window resets', async () => {
   await chmod(join(binDir, 'pi'), 0o755);
   process.env['PATH'] = `${binDir}:${realPath}`;
 
-  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + HOUR });
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   let poll = 0;
   mockFetch(() => {
     poll++;
-    return poll === 1 ? usage([90, HOUR], [50, 2 * HOUR]) : usage([0, 6 * HOUR], [50, 2 * HOUR]);
+    return poll === 1 ? usage([90, hour], [50, 2 * hour]) : usage([0, 6 * hour], [50, 2 * hour]);
   });
   mock.timers.enable({ apis: ['setTimeout'] });
 
   const session = startSession();
   await waitFor(() => session.statuses.length > 0);
-  mock.timers.tick(10 * MINUTE);
+  mock.timers.tick(10 * minute);
   await waitFor(async () => {
     try {
       return (await readFile(argsFile, 'utf-8')).length > 0;

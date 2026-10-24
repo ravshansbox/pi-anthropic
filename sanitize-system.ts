@@ -6,13 +6,13 @@ type AnthropicSystemBlock = {
 
 export type AnthropicSystem = AnthropicSystemBlock[] | string;
 
-const BAD_LINE_PREFIXES = [
+const badLinePrefixes = [
   '- When asked about: extensions (docs/extensions.md, examples/extensions/)',
   '- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing',
 ];
 
 function isBadLine(line: string): boolean {
-  return BAD_LINE_PREFIXES.some((prefix) => line.startsWith(prefix));
+  return badLinePrefixes.some((prefix) => line.startsWith(prefix));
 }
 
 function stripBadLines(text: string): string {
