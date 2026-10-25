@@ -6,7 +6,6 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from '@earendil-works/pi-coding-agent';
-import { Text } from '@earendil-works/pi-tui';
 
 interface QuotaState {
   fiveHourRemaining: number | null;
@@ -153,11 +152,7 @@ export default function (pi: ExtensionAPI) {
     if (!ctxRef) return;
     const text = buildStatusText();
     const line = text === undefined ? undefined : ctxRef.ui.theme.fg('muted', text);
-    ctxRef.ui.setWidget(
-      extensionName,
-      line === undefined ? undefined : () => new Text(line, 0, 0),
-      { placement: 'aboveEditor' },
-    );
+    ctxRef.ui.setStatus(extensionName, line);
   }
 
   function pingOnReset() {
