@@ -22,7 +22,7 @@ It also adds Anthropic's server-side `web_search` and `web_fetch` tools to Claud
 
 - Calls the Anthropic usage endpoint once on session start, then reads the quota from the rate limit headers of each Anthropic response
 - Refreshes the Anthropic OAuth token in `~/.pi/agent/auth.json` when needed and writes it back
-- Runs `pi -p hi` with the active model when a quota window resets
+- Runs `pi -p hi` with the active model when a quota window resets, then reloads the quota
 - Appends errors to `~/.pi/agent/pi-anthropic.log`
 
 ## Development

@@ -297,3 +297,24 @@ test('pings again when the later quota window resets', async () => {
   await waitFor(async () => (await pings()) === 2);
   session.stop();
 });
+
+test('refreshes the quota after the reset ping', async () => {
+  const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
+  await writeFile(join(binDir, 'pi'), '#!/bin/sh\nexit 0\n');
+  await chmod(join(binDir, 'pi'), 0o755);
+  process.env['PATH'] = `${binDir}:${realPath}`;
+
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + 10 * hour });
+  let polls = 0;
+  mockFetch(() => {
+    polls += 1;
+    return polls === 1 ? usage([90, hour], [50, 48 * hour]) : usage([1, 5 * hour], [51, 50 * hour]);
+  });
+  mock.timers.enable({ apis: ['setTimeout'] });
+
+  const session = startSession();
+  await waitFor(() => session.statuses.length > 0);
+  mock.timers.tick(hour);
+  await waitFor(() => session.statuses.at(-1) === '<dim>1% 5h · 51% 2d</>');
+  session.stop();
+});
