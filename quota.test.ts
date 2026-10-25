@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, mock, test } from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { Component } from '@earendil-works/pi-tui';
 import extension from './index.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
@@ -77,15 +78,21 @@ function startSession(provider = 'anthropic') {
   } as unknown as ExtensionAPI;
   extension(pi);
 
-  const statuses: (string | undefined)[] = [];
+  const widgets: (string | undefined)[] = [];
   const notifications: string[] = [];
   const ctx = {
     cwd: agentDir,
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
-      setStatus: (key: string, text: string | undefined) => {
+      setWidget: (
+        key: string,
+        content: ((tui: unknown, theme: unknown) => Component) | undefined,
+        options?: { placement?: string },
+      ) => {
         assert.equal(key, 'pi-anthropic');
-        statuses.push(text);
+        if (content === undefined) return widgets.push(undefined);
+        assert.equal(options?.placement, 'aboveEditor');
+        widgets.push(content({}, {}).render(80).join('\n').trimEnd());
       },
       notify: (message: string) => notifications.push(message),
       theme: { fg: (_colour: string, text: string) => text },
@@ -94,7 +101,7 @@ function startSession(provider = 'anthropic') {
   handlers.get('session_start')?.({}, ctx);
 
   return {
-    statuses,
+    widgets,
     notifications,
     ctx,
     emit: (event: string, eventCtx: unknown = ctx, payload: unknown = {}) =>
@@ -103,7 +110,7 @@ function startSession(provider = 'anthropic') {
   };
 }
 
-test('shows remaining Anthropic quota in the footer', async () => {
+test('shows remaining Anthropic quota above the editor', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')
@@ -112,21 +119,21 @@ test('shows remaining Anthropic quota in the footer', async () => {
   );
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '93% 1h29m · 67% 3d13h');
+  assert.equal(session.widgets.at(-1), '93% 1h29m · 67% 3d13h');
 });
 
-test('hides the status when the active model is not Anthropic', async () => {
+test('hides the widget when the active model is not Anthropic', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch(() => usage([7, hour], [33, 2 * hour]));
 
   const session = startSession('openai');
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   session.stop();
 
-  assert.equal(session.statuses.at(-1), undefined);
+  assert.equal(session.widgets.at(-1), undefined);
 });
 
 test('shows the status again when switching to an Anthropic model', async () => {
@@ -134,14 +141,14 @@ test('shows the status again when switching to an Anthropic model', async () => 
   mockFetch(() => usage([50, 2 * hour + 30_000], [50, 3 * hour + 30_000]));
 
   const session = startSession('openai');
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   session.emit('model_select', {
     ...session.ctx,
     model: { provider: 'anthropic', id: 'claude-sonnet-4-5' },
   });
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '50% 2h0m · 50% 3h0m');
+  assert.equal(session.widgets.at(-1), '50% 2h0m · 50% 3h0m');
 });
 
 test('refreshes an expired Anthropic token and saves it', async () => {
@@ -156,7 +163,7 @@ test('refreshes an expired Anthropic token and saves it', async () => {
   });
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   session.stop();
 
   const saved = JSON.parse(await readFile(join(agentDir, 'auth.json'), 'utf-8'));
@@ -171,7 +178,7 @@ test('logs failed usage requests', async () => {
   mockFetch(() => undefined);
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   session.stop();
 
   const log = await readFile(join(agentDir, 'pi-anthropic.log'), 'utf-8');
@@ -183,7 +190,7 @@ test('updates the quota from Anthropic response headers', async () => {
   mockFetch(() => usage([7, hour], [33, 2 * hour]));
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   const seconds = (ms: number) => String(Math.floor((Date.now() + ms) / 1000));
   session.emit('after_provider_response', session.ctx, {
     type: 'after_provider_response',
@@ -197,7 +204,7 @@ test('updates the quota from Anthropic response headers', async () => {
   });
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '75% 2h0m · 60% 1d2h');
+  assert.equal(session.widgets.at(-1), '75% 2h0m · 60% 1d2h');
 });
 
 test('calls the usage endpoint only at session start', async () => {
@@ -206,7 +213,7 @@ test('calls the usage endpoint only at session start', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   mock.timers.tick(30 * minute);
   await settle(200);
   session.stop();
@@ -239,7 +246,7 @@ test('ignores a usage response that arrives after shutdown', async () => {
   await settle(200);
   process.off('unhandledRejection', onRejection);
 
-  assert.deepEqual(session.statuses, []);
+  assert.deepEqual(session.widgets, []);
   assert.deepEqual(rejections, []);
   await assert.rejects(readFile(join(agentDir, 'pi-anthropic.log'), 'utf-8'));
 });
@@ -256,7 +263,7 @@ test('pings the active model when a quota window resets', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
 
   const session = startSession();
-  await waitFor(() => session.statuses.length > 0);
+  await waitFor(() => session.widgets.length > 0);
   mock.timers.tick(hour);
   await waitFor(async () => {
     try {
