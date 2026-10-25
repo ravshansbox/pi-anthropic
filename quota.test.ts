@@ -88,7 +88,7 @@ function startSession(provider = 'anthropic') {
         statuses.push(text);
       },
       notify: (message: string) => notifications.push(message),
-      theme: { fg: (_colour: string, text: string) => text },
+      theme: { fg: (colour: string, text: string) => `<${colour}>${text}</>` },
     },
   };
   handlers.get('session_start')?.({}, ctx);
@@ -115,7 +115,7 @@ test('shows remaining Anthropic quota in the footer', async () => {
   await waitFor(() => session.statuses.length > 0);
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '93% 1h29m · 67% 3d13h');
+  assert.equal(session.statuses.at(-1), '<dim>93% 1h29m · 67% 3d13h</>');
 });
 
 test('hides the status when the active model is not Anthropic', async () => {
@@ -141,7 +141,7 @@ test('shows the status again when switching to an Anthropic model', async () => 
   });
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '50% 2h0m · 50% 3h0m');
+  assert.equal(session.statuses.at(-1), '<dim>50% 2h0m · 50% 3h0m</>');
 });
 
 test('refreshes an expired Anthropic token and saves it', async () => {
@@ -197,7 +197,7 @@ test('updates the quota from Anthropic response headers', async () => {
   });
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '75% 2h0m · 60% 1d2h');
+  assert.equal(session.statuses.at(-1), '<dim>75% 2h0m · 60% 1d2h</>');
 });
 
 test('calls the usage endpoint only at session start', async () => {
