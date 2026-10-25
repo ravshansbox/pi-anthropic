@@ -12,7 +12,7 @@ Add `-l` to install it in project settings.
 
 ## Usage
 
-Pi loads the extension from `./index.ts` and sanitises outgoing Anthropic system prompts for Claude models before the provider request is sent.
+Pi loads the extension from `./index.ts` and sanitises outgoing Anthropic system prompts for Claude models that use the Anthropic Messages API before the provider request is sent.
 
 For example, if a Claude request contains the known problematic documentation lines in the `system` text, the extension removes those lines while leaving the rest of the prompt unchanged.
 

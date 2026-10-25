@@ -21,7 +21,8 @@ function addWebTools(tools: AnthropicTool[] = []): AnthropicTool[] {
 
 export default function (pi: ExtensionAPI) {
   quota(pi);
-  pi.on('before_provider_request', (event) => {
+  pi.on('before_provider_request', (event, ctx) => {
+    if (ctx.model?.api !== 'anthropic-messages') return;
     const payload = event.payload as AnthropicPayload;
     if (!payload || typeof payload !== 'object') return;
     if (typeof payload.model !== 'string') return;

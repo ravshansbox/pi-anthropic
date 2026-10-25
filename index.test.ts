@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import extension from './index.ts';
 
-type Handler = (event: { payload: unknown }) => unknown;
+type Handler = (event: { payload: unknown }, ctx: { model?: { api: string } }) => unknown;
 
-function sendRequest(payload: unknown): unknown {
+function sendRequest(payload: unknown, api = 'anthropic-messages'): unknown {
   let handler: Handler | undefined;
   const pi = {
     on: (event: string, h: Handler) => {
@@ -13,7 +13,7 @@ function sendRequest(payload: unknown): unknown {
     },
   } as unknown as ExtensionAPI;
   extension(pi);
-  return handler?.({ payload }) ?? payload;
+  return handler?.({ payload }, { model: { api } }) ?? payload;
 }
 
 const webTools = [
@@ -51,6 +51,11 @@ test('does not add a web tool whose name is already taken', () => {
 test('leaves non-Claude requests unchanged', () => {
   const payload = { model: 'gpt-5', tools: [] };
   assert.equal(sendRequest(payload), payload);
+});
+
+test('leaves Claude requests to other APIs unchanged', () => {
+  const payload = { model: 'claude-sonnet-5', context: {}, options: {} };
+  assert.equal(sendRequest(payload, 'pi-messages'), payload);
 });
 
 test('still strips known bad system prompt lines', () => {
