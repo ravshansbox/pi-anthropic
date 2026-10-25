@@ -181,7 +181,9 @@ export default function (pi: ExtensionAPI) {
     child.on('error', (error: unknown) => {
       void logError('Reset ping failed:', error);
     });
-    child.on('exit', () => void pollQuotaStatus());
+    child.on('exit', () => {
+      if (ctxRef) void pollQuotaStatus();
+    });
 
     child.unref();
   }

@@ -298,6 +298,34 @@ test('pings again when the later quota window resets', async () => {
   session.stop();
 });
 
+test('skips the quota reload when the reset ping ends after shutdown', async () => {
+  const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
+  const doneFile = join(binDir, 'done');
+  await writeFile(join(binDir, 'pi'), `#!/bin/sh\nsleep 0.2\ntouch "${doneFile}"\n`);
+  await chmod(join(binDir, 'pi'), 0o755);
+  process.env['PATH'] = `${binDir}:${realPath}`;
+
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + 10 * hour });
+  const calls = mockFetch(() => usage([90, hour], [50, 48 * hour]));
+  mock.timers.enable({ apis: ['setTimeout'] });
+
+  const session = startSession();
+  await waitFor(() => session.statuses.length > 0);
+  mock.timers.tick(hour);
+  session.stop();
+  await waitFor(async () => {
+    try {
+      await readFile(doneFile);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  await settle(200);
+
+  assert.equal(calls.filter((url) => url.endsWith('/api/oauth/usage')).length, 1);
+});
+
 test('refreshes the quota after the reset ping', async () => {
   const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
   await writeFile(join(binDir, 'pi'), '#!/bin/sh\nexit 0\n');
