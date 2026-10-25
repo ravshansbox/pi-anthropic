@@ -327,6 +327,29 @@ test('pings once per quota window reset when the timer fires early', async () =>
   assert.equal(await pings(), 1);
 });
 
+test('reloads the quota at reset when the active model is not Anthropic', async () => {
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + 10 * hour });
+  let polls = 0;
+  mockFetch(() => {
+    polls += 1;
+    return polls === 1 ? usage([90, hour], [50, 48 * hour]) : usage([1, 5 * hour], [51, 50 * hour]);
+  });
+  mock.timers.enable({ apis: ['setTimeout'] });
+
+  const session = startSession('openai');
+  await waitFor(() => session.statuses.length > 0);
+  mock.timers.tick(hour);
+  await waitFor(() => polls === 2);
+  await settle(50);
+  session.emit('model_select', {
+    ...session.ctx,
+    model: { provider: 'anthropic', id: 'claude-sonnet-4-5' },
+  });
+  session.stop();
+
+  assert.equal(session.statuses.at(-1), '<dim>1% 5h · 51% 2d</>');
+});
+
 test('skips the quota reload when the reset ping ends after shutdown', async () => {
   const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
   const doneFile = join(binDir, 'done');

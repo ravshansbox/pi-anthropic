@@ -159,7 +159,11 @@ export default function (pi: ExtensionAPI) {
 
   function pingOnReset() {
     const ctx = ctxRef;
-    if (ctx?.model?.provider !== provider) return;
+    if (!ctx) return;
+    if (ctx.model?.provider !== provider) {
+      void pollQuotaStatus();
+      return;
+    }
 
     const child = spawn(
       'pi',
