@@ -214,6 +214,36 @@ test('calls the usage endpoint only at session start', async () => {
   assert.equal(calls.filter((url) => url.endsWith('/api/oauth/usage')).length, 1);
 });
 
+test('ignores a usage response that arrives after shutdown', async () => {
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  let respond: (() => void) | undefined;
+  globalThis.fetch = (() =>
+    new Promise<Response>((resolve) => {
+      respond = () => resolve(new Response(JSON.stringify(usage([7, hour], [33, 2 * hour]))));
+    })) as typeof fetch;
+  const rejections: unknown[] = [];
+  const onRejection = (reason: unknown) => rejections.push(reason);
+  process.on('unhandledRejection', onRejection);
+
+  const session = startSession();
+  await waitFor(() => respond !== undefined);
+  session.stop();
+  for (const key of ['ui', 'model', 'cwd']) {
+    Object.defineProperty(session.ctx, key, {
+      get: () => {
+        throw new Error('stale ctx');
+      },
+    });
+  }
+  respond?.();
+  await settle(200);
+  process.off('unhandledRejection', onRejection);
+
+  assert.deepEqual(session.statuses, []);
+  assert.deepEqual(rejections, []);
+  await assert.rejects(readFile(join(agentDir, 'pi-anthropic.log'), 'utf-8'));
+});
+
 test('pings the active model when a quota window resets', async () => {
   const binDir = await mkdtemp(join(tmpdir(), 'pi-bin-'));
   const argsFile = join(binDir, 'args');

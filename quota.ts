@@ -195,6 +195,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function updateState(next: QuotaState) {
+    if (!ctxRef) return;
     state = next;
     schedulePing();
     updateStatus();
@@ -312,5 +313,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on('session_shutdown', () => {
     stopTimers();
+    ctxRef = null;
   });
 }
