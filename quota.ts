@@ -188,21 +188,18 @@ export default function (pi: ExtensionAPI) {
     child.unref();
   }
 
-  function schedulePing() {
+  function schedulePing(after = Date.now()) {
     if (pingTimer) clearTimeout(pingTimer);
     pingTimer = null;
-    const now = Date.now();
     const resets = [state?.fiveHourReset, state?.sevenDayReset]
       .map((reset) => reset?.getTime())
-      .filter((time): time is number => time !== undefined && time > now);
+      .filter((time): time is number => time !== undefined && time > after);
     if (resets.length === 0) return;
-    pingTimer = setTimeout(
-      () => {
-        pingOnReset();
-        schedulePing();
-      },
-      Math.min(...resets) - now,
-    );
+    const next = Math.min(...resets);
+    pingTimer = setTimeout(() => {
+      pingOnReset();
+      schedulePing(next);
+    }, next - Date.now());
   }
 
   function updateState(next: QuotaState) {
