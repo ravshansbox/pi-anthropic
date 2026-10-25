@@ -103,7 +103,7 @@ function startSession(provider = 'anthropic') {
   };
 }
 
-test('shows remaining Anthropic quota in the footer', async () => {
+test('shows used Anthropic quota in the footer', async () => {
   await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
   mockFetch((url) =>
     url.endsWith('/api/oauth/usage')
@@ -115,7 +115,7 @@ test('shows remaining Anthropic quota in the footer', async () => {
   await waitFor(() => session.statuses.length > 0);
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '<dim>93% 1h29m · 67% 4d</>');
+  assert.equal(session.statuses.at(-1), '<dim>7% 1h29m · 33% 4d</>');
 });
 
 test('hides the status when the active model is not Anthropic', async () => {
@@ -197,7 +197,7 @@ test('updates the quota from Anthropic response headers', async () => {
   });
   session.stop();
 
-  assert.equal(session.statuses.at(-1), '<dim>75% 2h · 60% 1d2h</>');
+  assert.equal(session.statuses.at(-1), '<dim>25% 2h · 40% 1d2h</>');
 });
 
 test('calls the usage endpoint only at session start', async () => {

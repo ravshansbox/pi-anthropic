@@ -8,9 +8,9 @@ import {
 } from '@earendil-works/pi-coding-agent';
 
 interface QuotaState {
-  fiveHourRemaining: number | null;
+  fiveHourUsed: number | null;
   fiveHourReset: Date | null;
-  sevenDayRemaining: number | null;
+  sevenDayUsed: number | null;
   sevenDayReset: Date | null;
 }
 
@@ -102,7 +102,7 @@ async function logError(message: string, error?: unknown): Promise<void> {
 
 function parseWindow(window: UsageWindow | undefined) {
   return {
-    remaining: window ? clampPercent(100 - (window.utilization ?? 0)) : null,
+    used: window ? clampPercent(window.utilization ?? 0) : null,
     reset: window?.resets_at ? new Date(window.resets_at) : null,
   };
 }
@@ -111,7 +111,7 @@ function parseHeaderWindow(headers: Record<string, string>, name: string) {
   const utilization = headers[`anthropic-ratelimit-unified-${name}-utilization`];
   const reset = headers[`anthropic-ratelimit-unified-${name}-reset`];
   return {
-    remaining: utilization === undefined ? null : clampPercent(100 - Number(utilization) * 100),
+    used: utilization === undefined ? null : clampPercent(Number(utilization) * 100),
     reset: reset === undefined ? null : new Date(Number(reset) * 1000),
   };
 }
@@ -119,11 +119,11 @@ function parseHeaderWindow(headers: Record<string, string>, name: string) {
 function parseHeaders(headers: Record<string, string>): QuotaState | null {
   const fiveHour = parseHeaderWindow(headers, '5h');
   const sevenDay = parseHeaderWindow(headers, '7d');
-  if (fiveHour.remaining === null && sevenDay.remaining === null) return null;
+  if (fiveHour.used === null && sevenDay.used === null) return null;
   return {
-    fiveHourRemaining: fiveHour.remaining,
+    fiveHourUsed: fiveHour.used,
     fiveHourReset: fiveHour.reset,
-    sevenDayRemaining: sevenDay.remaining,
+    sevenDayUsed: sevenDay.used,
     sevenDayReset: sevenDay.reset,
   };
 }
@@ -139,13 +139,13 @@ export default function (pi: ExtensionAPI) {
     if (ctxRef?.model?.provider !== provider || !state) return undefined;
 
     const parts: string[] = [];
-    if (state.fiveHourRemaining !== null) {
+    if (state.fiveHourUsed !== null) {
       const resetStr = state.fiveHourReset ? formatResetTime(state.fiveHourReset) : '?';
-      parts.push(`${state.fiveHourRemaining}% ${resetStr}`);
+      parts.push(`${state.fiveHourUsed}% ${resetStr}`);
     }
-    if (state.sevenDayRemaining !== null) {
+    if (state.sevenDayUsed !== null) {
       const resetStr = state.sevenDayReset ? formatResetTime(state.sevenDayReset) : '?';
-      parts.push(`${state.sevenDayRemaining}% ${resetStr}`);
+      parts.push(`${state.sevenDayUsed}% ${resetStr}`);
     }
     return parts.length > 0 ? parts.join(' · ') : undefined;
   }
@@ -265,9 +265,9 @@ export default function (pi: ExtensionAPI) {
       const fiveHour = parseWindow(data.five_hour);
       const sevenDay = parseWindow(data.seven_day);
       updateState({
-        fiveHourRemaining: fiveHour.remaining,
+        fiveHourUsed: fiveHour.used,
         fiveHourReset: fiveHour.reset,
-        sevenDayRemaining: sevenDay.remaining,
+        sevenDayUsed: sevenDay.used,
         sevenDayReset: sevenDay.reset,
       });
     } catch (error) {
