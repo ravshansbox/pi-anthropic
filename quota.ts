@@ -193,7 +193,13 @@ export default function (pi: ExtensionAPI) {
       .map((reset) => reset?.getTime())
       .filter((time): time is number => time !== undefined && time > now);
     if (resets.length === 0) return;
-    pingTimer = setTimeout(pingOnReset, Math.min(...resets) - now);
+    pingTimer = setTimeout(
+      () => {
+        pingOnReset();
+        schedulePing();
+      },
+      Math.min(...resets) - now,
+    );
   }
 
   function updateState(next: QuotaState) {
