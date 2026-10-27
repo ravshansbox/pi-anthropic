@@ -151,7 +151,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function updateStatus() {
-    if (!ctxRef?.hasUI) return;
+    if (!ctxRef) return;
     const text = buildStatusText();
     const line = text === undefined ? undefined : ctxRef.ui.theme.fg('dim', text);
     ctxRef.ui.setStatus(extensionName, line);
