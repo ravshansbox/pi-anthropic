@@ -70,7 +70,7 @@ async function writeAuth(record: Record<string, unknown>) {
   await writeFile(join(agentDir, 'auth.json'), JSON.stringify({ anthropic: record }));
 }
 
-function startSession(provider = 'anthropic') {
+function startSession(provider = 'anthropic', hasUI = true) {
   const handlers = new Map<string, Handler>();
   const pi = {
     on: (event: string, handler: Handler) => handlers.set(event, handler),
@@ -81,6 +81,7 @@ function startSession(provider = 'anthropic') {
   const notifications: string[] = [];
   const ctx = {
     cwd: agentDir,
+    hasUI,
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
       setStatus: (key: string, text: string | undefined) => {
@@ -88,7 +89,10 @@ function startSession(provider = 'anthropic') {
         statuses.push(text);
       },
       notify: (message: string) => notifications.push(message),
-      theme: { fg: (colour: string, text: string) => `<${colour}>${text}</>` },
+      get theme() {
+        if (!hasUI) throw new Error('Theme not initialized. Call initTheme() first.');
+        return { fg: (colour: string, text: string) => `<${colour}>${text}</>` };
+      },
     },
   };
   handlers.get('session_start')?.({}, ctx);
@@ -116,6 +120,18 @@ test('shows used Anthropic quota in the footer', async () => {
   session.stop();
 
   assert.equal(session.statuses.at(-1), '<dim>7% 1h29m · 33% 4d</>');
+});
+
+test('does not touch the footer when there is no UI', async () => {
+  await writeAuth({ access: 'token', refresh: 'r', expires: Date.now() + hour });
+  const calls = mockFetch(() => usage([7, hour], [33, 2 * hour]));
+
+  const session = startSession('anthropic', false);
+  await waitFor(() => calls.length > 0);
+  await settle(50);
+  session.stop();
+
+  assert.deepEqual(session.statuses, []);
 });
 
 test('hides the status when the active model is not Anthropic', async () => {
