@@ -24,6 +24,7 @@ It also adds Anthropic's server-side `web_search` and `web_fetch` tools to Claud
 - Refreshes the Anthropic OAuth token in `~/.pi/agent/auth.json` when needed and writes it back
 - Runs `pi -p hi` with the active model when a quota window resets, then reloads the quota (only reloads when the active model is not from Anthropic)
 - Appends errors to `~/.pi/agent/pi-anthropic.log`
+- Does nothing outside the TUI (RPC, JSON and print modes, including subagents)
 
 ## Development
 

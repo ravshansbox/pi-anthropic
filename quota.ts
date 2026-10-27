@@ -301,6 +301,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on('session_start', (_event, ctx) => {
+    if (ctx.mode !== 'tui') return;
     stopTimers();
     state = null;
     refreshNotified = false;
@@ -311,7 +312,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on('after_provider_response', (event, ctx) => {
-    if (ctx.model?.provider !== provider) return;
+    if (ctx.mode !== 'tui' || ctx.model?.provider !== provider) return;
     const next = parseHeaders(event.headers);
     if (!next) return;
     ctxRef = ctx;
