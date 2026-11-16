@@ -36,6 +36,7 @@ type UsageResponse = {
 };
 
 const extensionName = 'pi-anthropic';
+const widgetKey = 'anthropic';
 const provider = 'anthropic';
 const requestTimeoutMs = 30_000;
 
@@ -154,7 +155,7 @@ export default function (pi: ExtensionAPI) {
     if (ctxRef?.mode !== 'tui') return;
     const text = buildStatusText();
     const line = text === undefined ? undefined : ctxRef.ui.theme.fg('dim', text);
-    ctxRef.ui.setStatus(extensionName, line);
+    ctxRef.ui.setStatus(widgetKey, line);
   }
 
   function pingOnReset() {

@@ -85,7 +85,7 @@ function startSession(provider = 'anthropic', mode = 'tui') {
     model: { provider, id: 'claude-sonnet-4-5' },
     ui: {
       setStatus: (key: string, text: string | undefined) => {
-        assert.equal(key, 'pi-anthropic');
+        assert.equal(key, 'anthropic');
         statuses.push(text);
       },
       notify: (message: string) => notifications.push(message),
